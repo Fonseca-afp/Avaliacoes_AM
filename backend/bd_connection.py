@@ -28,4 +28,4 @@ def test_connection():
         result = connection.execute(text("SELECT * FROM \"Aluno\"")).fetchall()
         return result
 
-print(test_connection())
+#print(test_connection())
