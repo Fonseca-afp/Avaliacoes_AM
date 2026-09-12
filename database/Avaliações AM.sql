@@ -133,49 +133,62 @@ CREATE TABLE "ClassFinal" (
 
 CREATE TABLE "flex_br" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "flex_br_rep" int,
   "flex_br_nota" float
 );
 
-CREATE TABLE "ext_br" (
+CREATE TABLE "bola" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
-  "ext_br_rep" int,
-  "ext_br_nota" float
+  "bola_dist" int,
+  "bola_nota" float
+);
+
+CREATE TABLE "salto" (
+  "id" int PRIMARY KEY,
+  "sexo" varchar(1),
+  "salto_dist" int,
+  "salto_nota" float
+);
+
+CREATE TABLE "situps" (
+  "id" int PRIMARY KEY,
+  "sexo" varchar(1),
+  "abd_rep" int,
+  "abd_nota" float
 );
 
 CREATE TABLE "cooper" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "cooper_dist" int,
   "cooper_nota" float
 );
 
 CREATE TABLE "Pista200" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "tempo" interval,
   "nota" float
 );
 
 CREATE TABLE "Pista500" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "tempo" interval,
   "nota" float
 );
 
 CREATE TABLE "Marcor" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "tempo" interval,
   "nota" float
 );
 
 CREATE TABLE "PistaTriatlo" (
   "id" int PRIMARY KEY,
-  "sexo" varcahr(1),
+  "sexo" varchar(1),
   "tempo" interval,
   "nota" float
 );

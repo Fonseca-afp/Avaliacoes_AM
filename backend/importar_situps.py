@@ -2,30 +2,29 @@ import pandas as pd
 from bd_connection import get_db_connection
 from sqlalchemy import text
 
-
 sep=";"
 decimal=","
 
-def importar_flex_br():
+def importar_situps():
     """
-    Função para importar os dados do Flex BR.
+    Função para importar os dados do SITUPS.
     """
-    # Lógica para importar os dados do Flex BR e armazenar no DataFrame df
+    # Lógica para importar os dados do SITUPS e armazenar no DataFrame df
     
     # ler ficheiro csv com separador e decimal especificados
-    df = pd.read_csv('/home/andre/projetos/Avaliacoes_AM/Avaliacoes_AM/dados/Tabelas_flex_br.csv', sep=sep, decimal=decimal) 
+    df = pd.read_csv('/home/andre/projetos/Avaliacoes_AM/Avaliacoes_AM/dados/Tabelas_situps.csv', sep=sep, decimal=decimal) 
 
     # renomear colunas do DataFrame df
-    df = df.rename(columns={"Ano": "ano", "Sexo": "sexo", "Flex_Rep": "flex_br_rep", "Flex_Nota":"flex_br_nota"}) 
+    df = df.rename(columns={"Ano": "ano", "Sexo": "sexo", "Abd_Rep": "abd_rep", "Abd_Nota":"abd_nota"}) 
 
     # remover coluna "ID" do DataFrame df
     df = df.drop(columns=["ID"])
 
     return df
 
-def inserir_flex_br(df):
+def inserir_situps(df):
     """
-    Função para inserir os dados do Flex BR no banco de dados.
+    Função para inserir os dados do SITUPS no banco de dados.
     """
     # Lógica para inserir os dados do DataFrame df no banco de dados
     # Exemplo: df.to_sql('nome_da_tabela', con=engine, if_exists='replace', index=False)
@@ -38,8 +37,8 @@ def inserir_flex_br(df):
     with engine.connect() as connection:
         connection.execute(text(
                 """
-                INSERT INTO "flex_br" (ano, sexo, flex_br_rep, flex_br_nota)
-                VALUES (:ano, :sexo, :flex_br_rep, :flex_br_nota)
+                INSERT INTO "situps" (ano, sexo, abd_rep, abd_nota)
+                VALUES (:ano, :sexo, :abd_rep, :abd_nota)
                 """),
             dados
         )
@@ -47,10 +46,6 @@ def inserir_flex_br(df):
         connection.commit()  # Confirma a transação após cada inserção
     pass
 
-df = importar_flex_br()
+df = importar_situps()
 
-inserir_flex_br(df)
-
-#print(importar_flex_br())
-
-
+inserir_situps(df)

@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 db_url = os.getenv("DATABASE_URL")
+#assert db_url is not None, "DATABASE_URL não está definida no arquivo .env"
 
 def get_db_connection():
     """
