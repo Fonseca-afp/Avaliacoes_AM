@@ -1,5 +1,5 @@
 backend/.env
-backend/venv/
-backend/__pycache__/
+backend/.venv/
+**/__pycache__/
 dados/Alunos.csv
 dados/Alunos.xlsx
