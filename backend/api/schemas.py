@@ -16,7 +16,6 @@ class AlunoCreate(BaseModel):
     altura: float | None= None
     peso: float | None= None
 
-
 class AlunoUpdate(BaseModel):
     ano: int | None = None
     comp: int | None = None
@@ -26,19 +25,19 @@ class AlunoUpdate(BaseModel):
     altura: float | None = None
     peso: float | None = None
 
-class TFBCreate(BaseModel):
+"""class TFBCreate(BaseModel):
     nim: str
     tipo_aval: str;
-    flex_br_rep: int
+    flex_br_rep: int |None = None
     flex_br_nota: float |None = None
-    abd_rep: int
+    abd_rep: int |None = None
     abd_nota: float| None = None
-    bola_dist: int
+    bola_dist: int |None = None
     bola_nota: float | None = None
-    salto_dist: int
+    salto_dist: int |None = None
     salto_nota: float |None = None
-    cooper_dist: int
-    cooper_nota: float | None = None
+    cooper_dist: int |None = None
+    cooper_nota: float | None = None"""
 
 class TFBUpdate(BaseModel):
     flex_br_rep: int | None = None

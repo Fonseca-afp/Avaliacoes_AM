@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
-from api.schemas import AlunoCreate, AlunoUpdate, TFBCreate, TFBUpdate
+from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate
 
 app = FastAPI()
 
@@ -25,15 +25,70 @@ def listar_alunos(db=Depends(get_db)):
     alunos = [dict(row._mapping) for row in result]
     return {"alunos": alunos}
 
-@app.get("/alunos/by-num-corpo/{num_corpo}")
+@app.get("/alunos/by_nim/{nim}")
+def get_aluno_by_nim(nim: str, db=Depends(get_db)):
+    """
+    Função auxiliar para obter um aluno pelo NIM.
+    """
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE nim = :nim"), {"nim": nim}).fetchone()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    return dict(result._mapping)
+
+@app.get("/alunos/by_num_corpo/{num_corpo}")
 def get_aluno_by_num_corpo(num_corpo: int, db=Depends(get_db)):
     """
     Função auxiliar para obter um aluno pelo número de corpo.
     """
-    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE num_corpo = :num_corpo"), {"num_corpo": num_corpo}).fetchone()
+    return obter_aluno_by_num_corpo(num_corpo, db)
+
+@app.get("/alunos/by_curso_ramo/{ramo}/{curso}")
+def get_alunos_by_curso_ramo(ramo:str, curso:str, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE ramo = :ramo AND curso = :curso"), {"ramo": ramo, "curso": curso}).fetchall()
     if result is None:
-        raise HTTPException(status_code=404, detail="Aluno não encontrado")
-    return dict(result._mapping)
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para o curso e ramo especificados")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
+
+@app.get("/alunos/by_curso_ramo/{ramo}")
+def get_alunos_by_ramo(ramo:str, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE ramo = :ramo "), {"ramo": ramo}).fetchall()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para o ramo especificado")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
+
+@app.get("/alunos/by_curso_ramo_ano/{ramo}/{curso}/{ano}")
+def get_alunos_by_curso_ramo_ano(ramo:str, curso:str, ano:int, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE ramo = :ramo AND curso = :curso AND ano = :ano"), {"ramo": ramo, "curso": curso, "ano": ano}).fetchall()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para o curso, ramo e ano especificados")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
+
+@app.get("/alunos/by_curso/{curso}")
+def get_alunos_by_curso(curso:str, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE curso = :curso"), {"curso": curso}).fetchall()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para o curso especificado")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
+
+@app.get("/alunos/by_ano/{ano}")
+def get_alunos_by_ano(ano:int, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE ano = :ano"), {"ano": ano}).fetchall()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para o ano especificado")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
+
+@app.get("/alunos/by_comp/{comp}")
+def get_alunos_by_comp(comp:int, db=Depends(get_db)):
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE comp = :comp"), {"comp": comp}).fetchall()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Nenhum aluno encontrado para a companhia especificado")
+    alunos = [dict(row._mapping) for row in result]
+    return {"alunos": alunos}
 
 @app.post("/alunos")
 def criar_aluno(aluno: AlunoCreate, db=Depends(get_db)):
@@ -97,3 +152,73 @@ def atualizar_aluno(num_corpo: int, aluno: AlunoUpdate, db=Depends(get_db)):
         )
         db.commit()
     return {"message": "Aluno atualizado com sucesso."}
+
+@app.get("/alunos/{num_corpo}/tfb")
+def get_tfb_by_num_corpo(num_corpo: int, db=Depends(get_db)):
+    """
+    Função auxiliar para obter os dados do TFB de um aluno pelo número de corpo.
+    """
+    result = obter_aluno_by_num_corpo(num_corpo, db)
+    nim = result.get("nim")
+    result = db.execute(text("SELECT * FROM \"TFB\" WHERE nim = :nim"), {"nim": nim}).fetchall()
+    if not result:
+        raise HTTPException(status_code=404, detail="Dados do TFB não encontrados para o aluno especificado")
+    return [dict(row._mapping) for row in result]
+
+@app.post("/alunos/{num_corpo}/tfb/{tipo_aval}")
+def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)):
+    """
+    Endpoint para criar os dados do TFB de um aluno.
+    """
+    # Verificar se o aluno existe pelo número de corpo
+    existing_aluno = obter_aluno_by_num_corpo(num_corpo, db)
+
+    nim = existing_aluno.get("nim")
+
+    if not existing_aluno:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado.")
+
+    result = db.execute(text("SELECT * FROM \"TFB\" WHERE nim = :nim AND tipo_aval = :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
+
+    if result:
+        dados_para_atualizar = tfb.model_dump(exclude_unset=True)
+        set_clause = ", ".join([f"{key} = :{key}" for key in dados_para_atualizar.keys()])
+        if set_clause:
+            db.execute(
+                text(f"UPDATE \"TFB\" SET {set_clause} WHERE nim = :nim AND tipo_aval = :tipo_aval"),
+                {**dados_para_atualizar, "nim": nim, "tipo_aval": tipo_aval}
+            )
+            db.commit()
+        return {"message": "Dados do TFB atualizados com sucesso."}
+
+    # Inserir os dados do TFB no banco de dados
+    db.execute(
+        text("""
+            INSERT INTO "TFB" (nim, tipo_aval, flex_br_rep, abd_rep, bola_dist, salto_dist, cooper_dist)
+            VALUES (:nim, :tipo_aval, :flex_br_rep, :abd_rep, :bola_dist, :salto_dist, :cooper_dist)
+        """),
+        {
+            "nim": nim,
+            "tipo_aval": tipo_aval,
+            "flex_br_rep": tfb.flex_br_rep,
+            "abd_rep": tfb.abd_rep,
+            "bola_dist": tfb.bola_dist,
+            "salto_dist": tfb.salto_dist,
+            "cooper_dist": tfb.cooper_dist,
+        }
+    )
+    db.commit()
+    return {"message": "Dados do TFB criados com sucesso."}
+
+
+"""Funções Auxiliares"""
+
+###Função auxiliar para obter um aluno pelo número de corpo
+def obter_aluno_by_num_corpo(num_corpo: int, db=Depends(get_db)):
+    """
+    Função auxiliar para obter um aluno pelo número de corpo.
+    """
+    result = db.execute(text("SELECT * FROM \"Aluno\" WHERE num_corpo = :num_corpo"), {"num_corpo": num_corpo}).fetchone()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    return dict(result._mapping)
