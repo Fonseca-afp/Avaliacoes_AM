@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
 from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate
-from calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota
+from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota
 
 app = FastAPI()
 
@@ -194,10 +194,10 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
         abd_nota_result = abd_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["abd_rep"])
         dados["abd_nota"] = abd_nota_result
     if "bola_dist" in dados:
-        bola_nota_result = bola_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["bola_dist"])
+        bola_nota_result = bola_nota(db, dados["bola_dist"])
         dados["bola_nota"] = bola_nota_result
     if "salto_dist" in dados:
-        salto_nota_result = salto_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["salto_dist"])
+        salto_nota_result = salto_nota(db, existing_aluno["sexo"], dados["salto_dist"])
         dados["salto_nota"] = salto_nota_result
     if "voltas" in dados and "metros" in dados and "pista" in dados:
         cooper_dist = cooper_distancia(dados["voltas"], dados["metros"], dados["pista"])

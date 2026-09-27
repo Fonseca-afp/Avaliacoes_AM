@@ -35,17 +35,17 @@ def cooper_nota(db, sexo, ano, cooper_distancia):
 
     return resultado[0]
 
-def bola_nota(db, sexo, ano, bola_dist):
+def bola_nota(db, bola_dist):
 
-    resultado = db.execute(text("SELECT bola_nota FROM bola WHERE sexo = :sexo AND ano = :ano AND bola_dist = :bola_dist"), {"sexo": sexo, "ano": ano, "bola_dist": bola_dist}).fetchone()
+    resultado = db.execute(text("SELECT bola_nota FROM bola WHERE bola_dist = :bola_dist"), {"bola_dist": bola_dist}).fetchone()
     if resultado is None:
         raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para os parâmetros especificados") 
 
     return resultado[0]
 
-def salto_nota(db, sexo, ano, salto_dist):
+def salto_nota(db, sexo, salto_dist):
 
-    resultado = db.execute(text("SELECT salto_nota FROM salto WHERE sexo = :sexo AND ano = :ano AND salto_dist = :salto_dist"), {"sexo": sexo, "ano": ano, "salto_dist": salto_dist}).fetchone()
+    resultado = db.execute(text("SELECT salto_nota FROM salto WHERE sexo = :sexo AND salto_dist = :salto_dist"), {"sexo": sexo, "salto_dist": salto_dist}).fetchone()
     if resultado is None:
         raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para os parâmetros especificados") 
 
