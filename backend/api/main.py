@@ -203,6 +203,10 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
         cooper_dist = cooper_distancia(dados["voltas"], dados["metros"], dados["pista"])
         cooper_nota_result = cooper_nota(db, existing_aluno["sexo"], existing_aluno["ano"], cooper_dist)
         dados["cooper_nota"] = cooper_nota_result
+        dados["cooper_dist"] = cooper_dist
+        dados.pop("voltas", None)
+        dados.pop("metros", None)
+        dados.pop("pista", None)
 
 
     result = db.execute(text("SELECT * FROM \"TFB\" WHERE nim = :nim AND tipo_aval = :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
@@ -215,22 +219,41 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
                 {**dados, "nim": nim, "tipo_aval": tipo_aval}
             )
             db.commit()
-        return {"message": "Dados do TFB atualizados com sucesso."}
+    else:
 
-    # Inserir os dados do TFB no banco de dados
-    colunas = ", ".join(dados.keys())
-    valores = ", ".join([f":{key}" for key in dados.keys()])
-    db.execute(
-        text(f"""
-            INSERT INTO "TFB" (nim, tipo_aval, {colunas})
-            VALUES (:nim, :tipo_aval, {valores})
-        """),
-        {
-            "nim": nim,
-            "tipo_aval": tipo_aval,
-            **dados
-        }
-    )
+        # Inserir os dados do TFB no banco de dados
+        colunas = ", ".join(dados.keys())
+        valores = ", ".join([f":{key}" for key in dados.keys()])
+        db.execute(
+            text(f"""
+                INSERT INTO "TFB" (nim, tipo_aval, {colunas})
+                VALUES (:nim, :tipo_aval, {valores})
+            """),
+            {
+                "nim": nim,
+                "tipo_aval": tipo_aval,
+                **dados
+            }
+        )
+        db.commit()
+
+    linha_atual = db.execute(
+        text("SELECT * FROM \"TFB\" WHERE nim = :nim AND tipo_aval = :tipo_aval"),
+        {"nim": nim, "tipo_aval": tipo_aval}
+    ).fetchone()
+
+    tfb_dict = dict(linha_atual._mapping) 
+
+    if (tfb_dict["flex_br_nota"] is not None and
+        tfb_dict["abd_nota"] is not None and
+        tfb_dict["bola_nota"] is not None and
+        tfb_dict["salto_nota"] is not None and
+        tfb_dict["cooper_nota"] is not None):
+        
+        nota = (tfb_dict["flex_br_nota"] + tfb_dict["abd_nota"] + 
+                tfb_dict["bola_nota"] + tfb_dict["salto_nota"] + tfb_dict["cooper_nota"])/5
+
+        db.execute(text('UPDATE \"TFB\" SET nota= :nota WHERE nim= :nim AND tipo_aval= :tipo_aval'), {"nota": nota, "nim": nim, "tipo_aval": tipo_aval})
 
     db.commit()
     return {"message": "Dados do TFB criados com sucesso."}   
