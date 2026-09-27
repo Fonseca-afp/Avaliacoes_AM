@@ -44,4 +44,6 @@ class TFBUpdate(BaseModel):
     abd_rep: int | None = None
     bola_dist: int | None = None
     salto_dist: int | None = None
-    cooper_dist: int | None = None
+    voltas: int | None = None
+    metros: int | None = None
+    pista: str | None = None

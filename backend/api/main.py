@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
 from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate
+from calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota
 
 app = FastAPI()
 
@@ -173,43 +174,66 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
     # Verificar se o aluno existe pelo número de corpo
     existing_aluno = obter_aluno_by_num_corpo(num_corpo, db)
 
-    nim = existing_aluno.get("nim")
-
     if not existing_aluno:
         raise HTTPException(status_code=404, detail="Aluno não encontrado.")
+    
+    nim = existing_aluno.get("nim")
+    sexo = existing_aluno.get("sexo")
+    ano = existing_aluno.get("ano")
+
+    dados = tfb.model_dump(exclude_unset=True)
+    
+    """
+    Endpoint para calcular as notas do TFB de um aluno.
+    """
+   
+    if "flex_br_rep" in dados:
+        flex_br_nota_result = flex_br_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["flex_br_rep"])
+        dados["flex_br_nota"] = flex_br_nota_result
+    if "abd_rep" in dados:
+        abd_nota_result = abd_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["abd_rep"])
+        dados["abd_nota"] = abd_nota_result
+    if "bola_dist" in dados:
+        bola_nota_result = bola_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["bola_dist"])
+        dados["bola_nota"] = bola_nota_result
+    if "salto_dist" in dados:
+        salto_nota_result = salto_nota(db, existing_aluno["sexo"], existing_aluno["ano"], dados["salto_dist"])
+        dados["salto_nota"] = salto_nota_result
+    if "voltas" in dados and "metros" in dados and "pista" in dados:
+        cooper_dist = cooper_distancia(dados["voltas"], dados["metros"], dados["pista"])
+        cooper_nota_result = cooper_nota(db, existing_aluno["sexo"], existing_aluno["ano"], cooper_dist)
+        dados["cooper_nota"] = cooper_nota_result
+
 
     result = db.execute(text("SELECT * FROM \"TFB\" WHERE nim = :nim AND tipo_aval = :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
 
     if result:
-        dados_para_atualizar = tfb.model_dump(exclude_unset=True)
-        set_clause = ", ".join([f"{key} = :{key}" for key in dados_para_atualizar.keys()])
+        set_clause = ", ".join([f"{key} = :{key}" for key in dados.keys()])
         if set_clause:
             db.execute(
                 text(f"UPDATE \"TFB\" SET {set_clause} WHERE nim = :nim AND tipo_aval = :tipo_aval"),
-                {**dados_para_atualizar, "nim": nim, "tipo_aval": tipo_aval}
+                {**dados, "nim": nim, "tipo_aval": tipo_aval}
             )
             db.commit()
         return {"message": "Dados do TFB atualizados com sucesso."}
 
     # Inserir os dados do TFB no banco de dados
+    colunas = ", ".join(dados.keys())
+    valores = ", ".join([f":{key}" for key in dados.keys()])
     db.execute(
-        text("""
-            INSERT INTO "TFB" (nim, tipo_aval, flex_br_rep, abd_rep, bola_dist, salto_dist, cooper_dist)
-            VALUES (:nim, :tipo_aval, :flex_br_rep, :abd_rep, :bola_dist, :salto_dist, :cooper_dist)
+        text(f"""
+            INSERT INTO "TFB" (nim, tipo_aval, {colunas})
+            VALUES (:nim, :tipo_aval, {valores})
         """),
         {
             "nim": nim,
             "tipo_aval": tipo_aval,
-            "flex_br_rep": tfb.flex_br_rep,
-            "abd_rep": tfb.abd_rep,
-            "bola_dist": tfb.bola_dist,
-            "salto_dist": tfb.salto_dist,
-            "cooper_dist": tfb.cooper_dist,
+            **dados
         }
     )
-    db.commit()
-    return {"message": "Dados do TFB criados com sucesso."}
 
+    db.commit()
+    return {"message": "Dados do TFB criados com sucesso."}   
 
 """Funções Auxiliares"""
 
