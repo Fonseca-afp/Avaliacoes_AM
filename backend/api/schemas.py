@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, time
 
 class AlunoCreate(BaseModel):
     nim: str
@@ -47,3 +47,13 @@ class TFBUpdate(BaseModel):
     voltas: int | None = None
     metros: int | None = None
     pista: str | None = None
+
+class TFAMUpdate(BaseModel):
+    tempo_inicio: time | None = None
+    tempo_fim: time | None = None
+    acertos: time | None = None
+    granadas_menos_5m: int | None = None
+    granadas_5m: int | None = None
+    granadas_10m: int | None = None
+    granadas_15m: int | None = None
+    apoios: int | None = None

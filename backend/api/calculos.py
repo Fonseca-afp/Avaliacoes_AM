@@ -1,5 +1,6 @@
 from sqlalchemy import text
 from fastapi import HTTPException
+from datetime import time
 
 def flex_br_nota(db, sexo, ano, flex_br_rep):
 
@@ -50,3 +51,41 @@ def salto_nota(db, sexo, salto_dist):
         raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para os parâmetros especificados") 
 
     return resultado[0]
+
+def tabela_pista_ano(ano):
+
+    if ano == 1:
+        return "Pista200"
+
+    elif ano == 2:
+        return "Marcor"        
+    
+    elif ano == 3:
+        return "Pista500m"
+
+    elif ano == 4:
+        return "PistaTriatlo"
+    
+    else:
+        raise HTTPException(status_code=404, detail="Nenhuma tabela encontrada para o ano indicado") 
+
+def nota_pista (db, ano, sexo, tempo):
+    tabela = tabela_pista_ano(ano)
+
+    resultado = db.execute(text(f"SELECT nota FROM {tabela} WHERE sexo= :sexo AND tempo= :tempo"),{"sexo": sexo, "tempo": tempo}).fetchone()
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para os parâmertos especificados")
+    
+    return resultado [0]
+
+def calculo_tempo_final_tfam(tempo_inicio, tempo_fim):
+
+    if tempo_inicio is None or tempo_fim is None:
+        raise HTTPException(status_code=400, detail="Tempo de pista inválido.")
+        
+    tempo_final = tempo_fim - tempo_inicio
+
+    return tempo_final
+
+def converter_min_seg (segundos):
+    return (segundos.hour *3600) + (segundos.minute * 60) + segundos.second

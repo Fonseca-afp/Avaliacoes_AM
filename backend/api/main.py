@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
-from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate
-from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota
+from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate, TFAMUpdate
+from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota, calculo_tempo_final_tfam
 
 app = FastAPI()
 
@@ -221,7 +221,7 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
             db.commit()
     else:
 
-        # Inserir os dados do TFB no banco de dados
+        # Inserir os dados do TFB no banco de dados 
         colunas = ", ".join(dados.keys())
         valores = ", ".join([f":{key}" for key in dados.keys()])
         db.execute(
@@ -258,6 +258,28 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
     db.commit()
     return {"message": "Dados do TFB criados com sucesso."}   
 
+@app.post("/alunos/{num_corpo}/tfam/{tipo_aval}")
+def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_db)):
+    """
+        Endpoint para criar os dados do TFAM de um aluno.
+        """
+        # Verificar se o aluno existe pelo número de corpo
+    existing_aluno = obter_aluno_by_num_corpo(num_corpo, db)
+
+    if not existing_aluno:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado.")
+    
+    nim = existing_aluno.get("nim")
+    sexo = existing_aluno.get("sexo")
+    ano = existing_aluno.get("ano")
+
+    dados = tfam.model_dump(exclude_unset=True)
+    
+    """
+    Endpoint para calcular as notas do TFAM de um aluno.
+    """
+
+
 """Funções Auxiliares"""
 
 ###Função auxiliar para obter um aluno pelo número de corpo
@@ -269,3 +291,5 @@ def obter_aluno_by_num_corpo(num_corpo: int, db=Depends(get_db)):
     if result is None:
         raise HTTPException(status_code=404, detail="Aluno não encontrado")
     return dict(result._mapping)
+
+ 
