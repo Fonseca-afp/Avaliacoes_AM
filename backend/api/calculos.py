@@ -69,23 +69,23 @@ def tabela_pista_ano(ano):
     else:
         raise HTTPException(status_code=404, detail="Nenhuma tabela encontrada para o ano indicado") 
 
-def nota_pista (db, ano, sexo, tempo):
+def nota_pista (db, ano, sexo, segundos):
     tabela = tabela_pista_ano(ano)
 
-    resultado = db.execute(text(f"SELECT nota FROM {tabela} WHERE sexo= :sexo AND tempo= :tempo"),{"sexo": sexo, "tempo": tempo}).fetchone()
+    resultado = db.execute(text(f'SELECT nota FROM "{tabela}" WHERE sexo= :sexo AND segundos= :segundos'),{"sexo": sexo, "segundos": segundos}).fetchone()
     if resultado is None:
         raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para os parâmertos especificados")
     
     return resultado [0]
 
-def calculo_tempo_final_tfam(tempo_inicio, tempo_fim):
+def calculo_tempo_final_tfam(tempo_fim, tempo_inicio, acertos):
 
     if tempo_inicio is None or tempo_fim is None:
         raise HTTPException(status_code=400, detail="Tempo de pista inválido.")
         
-    tempo_final = tempo_fim - tempo_inicio
+    tempo_final = tempo_fim - tempo_inicio + acertos
 
     return tempo_final
 
-def converter_min_seg (segundos):
-    return (segundos.hour *3600) + (segundos.minute * 60) + segundos.second
+def converter_min_seg (tempo):
+    return (tempo.hour *3600) + (tempo.minute * 60) + tempo.second

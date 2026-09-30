@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
 from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate, TFAMUpdate
-from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota, calculo_tempo_final_tfam
+from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota, calculo_tempo_final_tfam, converter_min_seg, nota_pista
 
 app = FastAPI()
 
@@ -278,6 +278,56 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     """
     Endpoint para calcular as notas do TFAM de um aluno.
     """
+    if "tempo_inicio" in dados:
+        dados["tempo_inicio"] = converter_min_seg(dados["tempo_inicio"])
+
+    if "tempo_fim" in dados:
+        dados["tempo_fim"] = converter_min_seg(dados["tempo_fim"])
+
+    if "acertos" in dados:
+        dados["acertos"] = converter_min_seg(dados["acertos"])
+
+    if "tempo_inicio" in dados and "tempo_fim" in dados: 
+        dados["tempo_final"] = calculo_tempo_final_tfam(dados["tempo_fim"], dados["tempo_inicio"], dados.get("acertos", 0))
+        dados["nota_base"] = nota_pista(db, ano, sexo, dados["tempo_final"])
+
+    result = db.execute(text("SELECT * FROM \"TFAM\" WHERE nim = :nim AND tipo_aval= :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
+
+    if result:
+        set_clause = ",".join([f":{key} = :key" for key in dados.keys()])
+        db.execute(
+            text(f"UPDATE \"TFAM\" SET {set_clause} WHERE nim = :nim AND tipo_aval= :tipo_aval"),
+            {**dados, "nim": nim, "tipo_aval": tipo_aval}
+        )
+        db.commit()
+    else:
+        colunas = ", ".join(dados.keys())
+        valores = ", ".join([f":{key}" for key in dados.keys()])
+        db.execute(
+            text(f"""
+                INSERT INTO "TFAM" (nim, tipo_aval, {colunas})
+                VALUES (:nim, :tipo_aval, {valores})
+                """),
+            {
+                "nim": nim,
+                "tipo_aval": tipo_aval,
+                **dados
+            }
+        )
+        db.commit()
+    return {"message": "Dados do TFAM guardados com sucesso."}
+
+@app.get("/alunos/{num_corpo}/tfam")
+def get_tfam_by_num_corpo(num_corpo: int, db=Depends(get_db)):
+    """
+    Função auxiliar para obter os dados do TFB de um aluno pelo número de corpo.
+    """
+    result = obter_aluno_by_num_corpo(num_corpo, db)
+    nim = result.get("nim")
+    result = db.execute(text("SELECT * FROM \"TFAM\" WHERE nim = :nim"), {"nim": nim}).fetchall()
+    if not result:
+        raise HTTPException(status_code=404, detail="Dados do TFAM não encontrados para o aluno especificado")
+    return [dict(row._mapping) for row in result]
 
 
 """Funções Auxiliares"""
