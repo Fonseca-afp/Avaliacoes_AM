@@ -89,3 +89,8 @@ def calculo_tempo_final_tfam(tempo_fim, tempo_inicio, acertos):
 
 def converter_min_seg (tempo):
     return (tempo.hour *3600) + (tempo.minute * 60) + tempo.second
+
+def marfor_no_tempo():
+    if 
+
+def calcular_tfb_final(nota_tfb1, nota_tfb2)

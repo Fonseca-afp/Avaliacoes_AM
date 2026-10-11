@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, time
 
 class AlunoCreate(BaseModel):
@@ -57,3 +57,12 @@ class TFAMUpdate(BaseModel):
     granadas_10m: int | None = None
     granadas_15m: int | None = None
     apoios: int | None = None
+    marfor_no_tempo: bool | None = None
+
+class ModalidadeResultadoUpdate(BaseModel):
+    nota: float = Field(ge=0, le=20)
+
+class ACEUpdate(BaseModel):
+    ace: str | None = None
+    funcao: str | None = None
+    tipo_prova: str | None = None
