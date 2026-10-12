@@ -180,6 +180,7 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
     nim = existing_aluno.get("nim")
     sexo = existing_aluno.get("sexo")
     ano = existing_aluno.get("ano")
+    curso = existing_aluno.get("curso")
 
     dados = tfb.model_dump(exclude_unset=True)
     
@@ -267,26 +268,66 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
                 nota_tfb2 = row[1]
 
     if nota_tfb1 is not None and nota_tfb2 is not None:
-        if ano == 1:
-            gin_resultado = db.execute(text("""SELECT mr.nota
-                                                FROM "ModalidadeResultado" mr
-                                                JOIN "Modalidade" m ON mr.modalidade_id = m.id 
-                                                WHERE mr.nim = :nim AND m.nome = 'gin'"""), 
-                                            {"nim": nim}
-                                        ).fetchone()
-            if gin_resultado is None:
-                raise HTTPException(status_code=404, detail="Nenhuma nota encontrada para a modalidade Gin do aluno especificado")
-            
-            nota_final = (0.3*nota_tfb1)+(0.45*nota_tfb2)+(0.25*gin_resultado[0])
-        else:
-            nota_final = (0.4*nota_tfb1)+(0.6*nota_tfb2)
 
-        result = db.execute(text('SELECT * FROM "TFB_Final" WHERE nim = :nim'),
-                            {"nim": nim}).fetchone()
-        if result:
-            db.execute(text('UPDATE "TFB_Final" SET tfb_final = :tfb_final WHERE nim = :nim'), {"nim": nim, "tfb_final": nota_final})
-            db.commit()
+        cursos_sem_gin = ["MED", "ENG", "MAT_M", "MAT_E", "TM"]
+
+        usar_gin = ano == 1 and curso not in cursos_sem_gin
+
+        if usar_gin:
+
+            gin_resultado = db.execute(
+                text("""
+                    SELECT mr.nota
+                    FROM "ModalidadeResultado" mr
+                    JOIN "Modalidade" m
+                        ON mr.modalidade_id = m.id
+                    WHERE mr.nim = :nim
+                    AND m.nome = 'gin'
+                """),
+                {"nim": nim}
+            ).fetchone()
+
+            # Ainda não existe nota de ginástica
+            if gin_resultado is None:
+                db.commit()
+                return {
+                    "message": "Dados do TFB guardados. A nota final ainda não pode ser calculada porque falta a nota de Ginástica."
+                }
+
+            nota_final = (
+                (0.30 * nota_tfb1)
+                + (0.45 * nota_tfb2)
+                + (0.25 * gin_resultado[0])
+            )
+
         else:
+
+            nota_final = (
+                (0.40 * nota_tfb1)
+                + (0.60 * nota_tfb2)
+            )
+
+        result = db.execute(
+            text('SELECT * FROM "TFB_Final" WHERE nim = :nim'),
+            {"nim": nim}
+        ).fetchone()
+
+        if result:
+
+            db.execute(
+                text("""
+                    UPDATE "TFB_Final"
+                    SET tfb_final = :tfb_final
+                    WHERE nim = :nim
+                """),
+                {
+                    "nim": nim,
+                    "tfb_final": nota_final
+                }
+            )
+
+        else:
+
             db.execute(
                 text("""
                     INSERT INTO "TFB_Final" (nim, tfb_final)
@@ -297,73 +338,32 @@ def criar_tfb(num_corpo: int, tipo_aval: str, tfb: TFBUpdate, db=Depends(get_db)
                     "tfb_final": nota_final
                 }
             )
-            db.commit()
+
+        db.commit()
        
-    else:
-        raise HTTPException(status_code=404, detail="Não é possível calcular a nota final. Verifique se o alunos tem as notas todas inseridas.")
-
-    
-
     db.commit()
     return {"message": "Dados do TFB criados com sucesso."}   
 
 @app.post("/alunos/{num_corpo}/modalidade/{nome_modalidade}/{tipo_aval}")
-def modalidade_resultado(num_corpo: int, nome_modalidade: str, tipo_aval: str,
-                         corpo: ModalidadeResultadoUpdate, db=Depends(get_db)):
+def modalidade_resultado(num_corpo: int, nome_modalidade: str, tipo_aval: str, corpo: ModalidadeResultadoUpdate, db=Depends(get_db)):
+    
+    # Verificar se o aluno existe pelo número de corpo
     existing_aluno = obter_aluno_by_num_corpo(num_corpo, db)
 
     if not existing_aluno:
         raise HTTPException(status_code=404, detail="Aluno não encontrado.")
-
+    
     nim = existing_aluno.get("nim")
     curso = existing_aluno.get("curso")
     ano = existing_aluno.get("ano")
-
-    modalidade = obter_modalidade(nome_modalidade, db)
-    modalidade_id = modalidade["id"]
-
-    # A F311 só se aplica a alunos do curso CAV no 4º ano
-    if modalidade["nome"] == "f311":
-        if ano != 4 or curso != "CAV":
-            raise HTTPException(
-                status_code=400,
-                detail="A F311 aplica-se apenas a alunos do curso CAV no 4º ano."
-            )
-
-    params = {
-        "nim": nim,
-        "modalidade_id": modalidade_id,
-        "tipo_aval": tipo_aval,
-        "nota": corpo.nota,
-    }
-
-    existente = db.execute(
-        text("""
-            SELECT id FROM "ModalidadeResultado"
-            WHERE nim = :nim AND modalidade_id = :modalidade_id AND tipo_aval = :tipo_aval
-        """),
-        params
-    ).fetchone()
-
-    if existente:
-        db.execute(
-            text("""
-                UPDATE "ModalidadeResultado" SET nota = :nota
-                WHERE nim = :nim AND modalidade_id = :modalidade_id AND tipo_aval = :tipo_aval
-            """),
-            params
-        )
-    else:
-        db.execute(
-            text("""
-                INSERT INTO "ModalidadeResultado" (nim, modalidade_id, tipo_aval, nota)
-                VALUES (:nim, :modalidade_id, :tipo_aval, :nota)
-            """),
-            params
-        )
-
-    db.commit()
-    return {"message": "Resultado da modalidade guardado com sucesso."}
+    
+    existing_modalidade = obter_modalidade(nome_modalidade, db)
+            
+    modalidade_id = existing_modalidade["id"]
+    
+    if nome_modalidade == "f311":
+        if ano is None or ano != 4 or curso != "CAV":
+            raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao curso de CAV.")
         
 
 
@@ -382,6 +382,7 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     nim = existing_aluno.get("nim")
     sexo = existing_aluno.get("sexo")
     ano = existing_aluno.get("ano")
+    curso = existing_aluno.get("curso")
 
     dados = tfam.model_dump(exclude_unset=True)
     
@@ -404,7 +405,7 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     result = db.execute(text("SELECT * FROM \"TFAM\" WHERE nim = :nim AND tipo_aval= :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
 
     if result:
-        set_clause = ",".join([f":{key} = :key" for key in dados.keys()])
+        set_clause = ",".join([f"{key} = :{key}" for key in dados.keys()])
         db.execute(
             text(f"UPDATE \"TFAM\" SET {set_clause} WHERE nim = :nim AND tipo_aval= :tipo_aval"),
             {**dados, "nim": nim, "tipo_aval": tipo_aval}
@@ -425,7 +426,186 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
             }
         )
         db.commit()
+
+    # Cursos sem TFAM
+    if curso == "MED" or (curso in ["ENG", "MAT-M", "MAT-E", "TM"] and ano is not None and ano >= 5):
+        db.commit()
+        return {"message": "Dados do TFAM guardados com sucesso."}
+
+    resultado_tfam = db.execute(
+        text("""
+            SELECT tipo_aval, nota_base, nota_marfor
+            FROM "TFAM"
+            WHERE nim = :nim
+            AND tipo_aval IN ('TFAM1', 'TFAM2')
+        """),
+        {"nim": nim}
+    ).fetchall()
+
+    nota_tfam1 = None
+    nota_tfam2 = None
+
+    for row in resultado_tfam:
+
+        tipo = row[0]
+
+        if tipo == "TFAM1":
+            nota_tfam1 = row[2]  # nota_marfor
+
+        elif tipo == "TFAM2":
+            nota_tfam2 = row[1]  # nota_base
+
+    if nota_tfam1 is None or nota_tfam2 is None:
+        db.commit()
+        return {
+            "message": "Dados do TFAM guardados. Ainda não existem elementos suficientes para calcular o TFAM_Final."
+        }
+
+    modalidades = db.execute(
+        text("""
+            SELECT m.nome, mr.nota
+            FROM "ModalidadeResultado" mr
+            JOIN "Modalidade" m
+                ON mr.modalidade_id = m.id
+            WHERE mr.nim = :nim
+            AND m.nome IN ('judo', 'equitacao', 'boxe', 'ccc')
+        """),
+        {"nim": nim}
+    ).fetchall()
+
+    modalidades_dict = {
+        row[0].lower(): row[1]
+        for row in modalidades
+    }
+
+    judo = modalidades_dict.get("judo")
+    equitacao = modalidades_dict.get("equitacao")
+    boxe = modalidades_dict.get("boxe")
+    ccc = modalidades_dict.get("ccc")
+
+    if ano == 1:
+
+        tfam_final = (
+            (0.20 * nota_tfam1)
+            + (0.80 * nota_tfam2)
+        )
+
+    elif ano == 2:
+
+        if judo is None:
+            return {
+                "message": "Dados do TFAM guardados. Falta a nota de Judo."
+            }
+
+        tfam_final = (
+            (0.10 * nota_tfam1)
+            + (0.70 * nota_tfam2)
+            + (0.20 * judo)
+        )
+
+    elif ano == 3:
+
+        if equitacao is None or boxe is None:
+            return {
+                "message": "Dados do TFAM guardados. Faltam as notas de Equitação e/ou Boxe."
+            }
+
+        tfam_final = (
+            (0.10 * nota_tfam1)
+            + (0.60 * nota_tfam2)
+            + (0.20 * equitacao)
+            + (0.10 * boxe)
+        )
+
+    elif ano == 4:
+
+        if ccc is None:
+            return {
+                "message": "Dados do TFAM guardados. Falta a nota de CCC."
+            }
+
+        tfam_final = (
+            (0.10 * nota_tfam1)
+            + (0.70 * nota_tfam2)
+            + (0.20 * ccc)
+        )
+
+    else:
+        db.commit()
+        return {"message": "Dados do TFAM guardados com sucesso."}
+
+    registo_final = db.execute(
+        text("""
+            SELECT *
+            FROM "TFAM_Final"
+            WHERE nim = :nim
+        """),
+        {"nim": nim}
+    ).fetchone()
+
+    params = {
+        "nim": nim,
+        "tfam_final": tfam_final,
+        "nota_base": nota_tfam2,
+        "marfor": nota_tfam1,
+        "judo": judo,
+        "equitacao": equitacao,
+        "boxe": boxe,
+        "ccc": ccc
+    }
+
+    if registo_final:
+
+        db.execute(
+            text("""
+                UPDATE "TFAM_Final"
+                SET tfam_final = :tfam_final,
+                    nota_base = :nota_base,
+                    marfor = :marfor,
+                    judo = :judo,
+                    equitacao = :equitacao,
+                    boxe = :boxe,
+                    ccc = :ccc
+                WHERE nim = :nim
+            """),
+            params
+        )
+
+    else:
+
+        db.execute(
+            text("""
+                INSERT INTO "TFAM_Final"
+                (
+                    nim,
+                    tfam_final,
+                    nota_base,
+                    marfor,
+                    judo,
+                    equitacao,
+                    boxe,
+                    ccc
+                )
+                VALUES
+                (
+                    :nim,
+                    :tfam_final,
+                    :nota_base,
+                    :marfor,
+                    :judo,
+                    :equitacao,
+                    :boxe,
+                    :ccc
+                )
+            """),
+            params
+        )
+
+    db.commit()
+
     return {"message": "Dados do TFAM guardados com sucesso."}
+
+
 
 @app.get("/alunos/{num_corpo}/tfam")
 def get_tfam_by_num_corpo(num_corpo: int, db=Depends(get_db)):

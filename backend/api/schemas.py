@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from datetime import date, time
 
 class AlunoCreate(BaseModel):
@@ -52,12 +52,25 @@ class TFAMUpdate(BaseModel):
     tempo_inicio: time | None = None
     tempo_fim: time | None = None
     acertos: time | None = None
-    granadas_menos_5m: int | None = None
-    granadas_5m: int | None = None
-    granadas_10m: int | None = None
-    granadas_15m: int | None = None
+    granadas_menos_5m: int | None = Field(default= None, ge=0, le=4)
+    granadas_5m: int | None = Field(default= None, ge=0, le=4)
+    granadas_10m: int | None = Field(default= None, ge=0, le=4)
+    granadas_15m: int | None = Field(default= None, ge=0, le=4)
     apoios: int | None = None
     marfor_no_tempo: bool | None = None
+    @model_validator(mode="after")
+    def validar_granadas(self):
+        granadas_menos_5m = self.granadas_menos_5m or 0
+        granadas_5m = self.granadas_5m or 0
+        granadas_10m = self.granadas_10m or 0
+        granadas_15m = self.granadas_15m or 0
+
+        total_granadas = granadas_menos_5m + granadas_5m + granadas_10m + granadas_15m
+
+        if total_granadas > 4:
+            raise ValueError("O total de granadas não pode exceder 4.")
+
+        return self
 
 class ModalidadeResultadoUpdate(BaseModel):
     nota: float = Field(ge=0, le=20)
