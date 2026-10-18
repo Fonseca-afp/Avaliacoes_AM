@@ -3,30 +3,28 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 load_dotenv()
+
 db_url = os.getenv("DATABASE_URL")
-#assert db_url is not None, "DATABASE_URL não está definida no arquivo .env"
+
+if db_url is None:
+    raise RuntimeError("DATABASE_URL não definida.")
+
+# Criado apenas uma vez quando o módulo é carregado
+engine = create_engine(db_url)
 
 def get_db_connection():
     """
-    Establishes a connection to the database using SQLAlchemy.
-
-    Returns:
-        engine: SQLAlchemy engine object for database connection.
+    Devolve o engine SQLAlchemy já criado.
     """
-    try:
-        engine = create_engine(db_url)
-        return engine
-    except Exception as e:
-        print(f"Error connecting to the database: {e}")
-        return None
+    return engine
+
 
 def test_connection():
-    engine = get_db_connection()
-    if engine is None:
-        print("Failed to connect to the database.")
-        return None
     with engine.connect() as connection:
-        result = connection.execute(text("SELECT * FROM \"Aluno\"")).fetchall()
+        result = connection.execute(
+            text('SELECT * FROM "Aluno"')
+        ).fetchall()
+
         return result
 
-#print(test_connection())
+# print(test_connection())

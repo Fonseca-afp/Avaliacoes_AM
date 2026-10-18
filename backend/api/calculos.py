@@ -84,14 +84,26 @@ def bonificacao_triatlo(granadas_5m, granadas_10m, granadas_15m, granadas_menos_
 
     return bonificacao
 
-def calculo_tempo_final_tfam(tempo_fim, tempo_inicio, acertos):
+def calculo_tempo_final_tfam(tempo_fim, tempo_inicio, acertos, bonificacao_triatlo):
 
     if tempo_inicio is None or tempo_fim is None:
         raise HTTPException(status_code=400, detail="Tempo de pista inválido.")
         
-    tempo_final = tempo_fim - tempo_inicio + acertos - bonificacao_triatlo(boni)
+    tempo_final = tempo_fim - tempo_inicio - acertos - bonificacao_triatlo
 
     return tempo_final
 
 def converter_min_seg (tempo):
     return (tempo.hour *3600) + (tempo.minute * 60) + tempo.second
+
+def calcular_nota_marfor(marfor_no_tempo, nota_base):
+    nota_marfor = 0
+    if marfor_no_tempo == True:
+        nota_marfor = nota_base + 1
+        if nota_marfor > 20:
+            nota_marfor = 20
+            return nota_marfor
+        else:
+            return nota_marfor
+    else:
+        return nota_base

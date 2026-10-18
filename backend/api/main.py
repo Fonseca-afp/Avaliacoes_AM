@@ -2,16 +2,19 @@ from fastapi import FastAPI, Depends, HTTPException
 from bd_connection import get_db_connection
 from sqlalchemy import text
 from api.schemas import AlunoCreate, AlunoUpdate, TFBUpdate, TFAMUpdate, ACEUpdate, ModalidadeResultadoUpdate
-from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota, calculo_tempo_final_tfam, converter_min_seg, nota_pista
+from api.calculos import flex_br_nota, abd_nota, bola_nota, salto_nota, cooper_distancia, cooper_nota, calculo_tempo_final_tfam, converter_min_seg, nota_pista, calcular_nota_marfor
 
 app = FastAPI()
 
 def get_db():
     
     engine = get_db_connection()
+
     if engine is None:
         raise RuntimeError("Falha ao conectar ao banco de dados.")
+    
     connection = engine.connect()
+
     try:
         yield connection
     finally:
@@ -360,12 +363,61 @@ def modalidade_resultado(num_corpo: int, nome_modalidade: str, tipo_aval: str, c
     existing_modalidade = obter_modalidade(nome_modalidade, db)
             
     modalidade_id = existing_modalidade["id"]
+
+    dados = corpo.model_dump(exclude_unset=True)
     
     if nome_modalidade == "f311":
         if ano is None or ano != 4 or curso != "CAV":
             raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao curso de CAV.")
-        
 
+    if nome_modalidade == "gin":
+        if ano is None or ano != 1 or curso == "MED":
+            raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao 1º ano.")
+    
+    if nome_modalidade == "judo":
+            if ano is None or ano != 2:
+                raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao 2º ano.")
+
+    if nome_modalidade == "equitacao":
+            if ano is None or ano != 3:
+                raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao 3º ano.")
+
+    if nome_modalidade == "boxe":
+            if ano is None or ano != 3:
+                raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao 3º ano.")
+
+    if nome_modalidade == "ccc":
+            if ano is None or ano != 4:
+                raise HTTPException(status_code=400, detail="O aluno indicado não pertence ao 4º ano.")
+    
+    
+    result = db.execute(text("SELECT * FROM \"ModalidadeResultado\" WHERE modalidade_id = :modalidade_id AND nim = :nim AND tipo_aval= :tipo_aval"), {"modalidade_id": modalidade_id, "nim": nim, "tipo_aval": tipo_aval}).fetchone()
+
+    if result:
+            set_clause = ",".join([f"{key} = :{key}" for key in dados.keys()])
+            db.execute(
+                text(f"UPDATE \"ModalidadeResultado\" SET {set_clause} WHERE nim = :nim AND modalidade_id = :modalidade_id AND tipo_aval= :tipo_aval"),
+                {**dados, "nim": nim, "modalidade_id": modalidade_id, "tipo_aval": tipo_aval}
+            )
+            db.commit()
+    else:
+        colunas = ", ".join(dados.keys())
+        valores = ", ".join([f":{key}" for key in dados.keys()])
+        db.execute(
+            text(f"""
+                INSERT INTO "ModalidadeResultado" (nim, modalidade_id, tipo_aval, {colunas})
+                VALUES (:nim, :modalidade_id, :tipo_aval, {valores})
+                """),
+            {
+                "nim": nim,
+                "modalidade_id": modalidade_id,
+                "tipo_aval": tipo_aval,
+                **dados
+            }
+        )
+        db.commit()    
+        
+    return {"message": "Resultado da modalidade guardado com sucesso."}
 
 
 @app.post("/alunos/{num_corpo}/tfam/{tipo_aval}")
@@ -399,7 +451,7 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
         dados["acertos"] = converter_min_seg(dados["acertos"])
 
     if "tempo_inicio" in dados and "tempo_fim" in dados: 
-        dados["tempo_final"] = calculo_tempo_final_tfam(dados["tempo_fim"], dados["tempo_inicio"], dados.get("acertos", 0))
+        dados["tempo_final"] = calculo_tempo_final_tfam(dados["tempo_fim"], dados["tempo_inicio"], dados.get("acertos", 0), dados.get("bonificacao_triatlo", 0))
         dados["nota_base"] = nota_pista(db, ano, sexo, dados["tempo_final"])
 
     result = db.execute(text("SELECT * FROM \"TFAM\" WHERE nim = :nim AND tipo_aval= :tipo_aval"), {"nim": nim, "tipo_aval": tipo_aval}).fetchone()
@@ -434,7 +486,7 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
 
     resultado_tfam = db.execute(
         text("""
-            SELECT tipo_aval, nota_base, nota_marfor
+            SELECT tipo_aval, nota_base, marfor_no_tempo
             FROM "TFAM"
             WHERE nim = :nim
             AND tipo_aval IN ('TFAM1', 'TFAM2')
@@ -442,24 +494,29 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
         {"nim": nim}
     ).fetchall()
 
-    nota_tfam1 = None
-    nota_tfam2 = None
+    marfor_no_tempo = None
+    nota_base = None
 
     for row in resultado_tfam:
 
         tipo = row[0]
 
         if tipo == "TFAM1":
-            nota_tfam1 = row[2]  # nota_marfor
+            marfor_no_tempo = row[2]
 
         elif tipo == "TFAM2":
-            nota_tfam2 = row[1]  # nota_base
+            nota_base = row[1]
 
-    if nota_tfam1 is None or nota_tfam2 is None:
+    if marfor_no_tempo is None or nota_base is None:
         db.commit()
         return {
             "message": "Dados do TFAM guardados. Ainda não existem elementos suficientes para calcular o TFAM_Final."
         }
+
+    nota_marfor = calcular_nota_marfor(
+        marfor_no_tempo,
+        nota_base
+    )
 
     modalidades = db.execute(
         text("""
@@ -486,8 +543,8 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     if ano == 1:
 
         tfam_final = (
-            (0.20 * nota_tfam1)
-            + (0.80 * nota_tfam2)
+            (0.20 * nota_marfor)
+            + (0.80 * nota_base)
         )
 
     elif ano == 2:
@@ -498,8 +555,8 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
             }
 
         tfam_final = (
-            (0.10 * nota_tfam1)
-            + (0.70 * nota_tfam2)
+            (0.10 * nota_marfor)
+            + (0.70 * nota_base)
             + (0.20 * judo)
         )
 
@@ -511,8 +568,8 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
             }
 
         tfam_final = (
-            (0.10 * nota_tfam1)
-            + (0.60 * nota_tfam2)
+            (0.10 * nota_marfor)
+            + (0.60 * nota_base)
             + (0.20 * equitacao)
             + (0.10 * boxe)
         )
@@ -525,8 +582,8 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
             }
 
         tfam_final = (
-            (0.10 * nota_tfam1)
-            + (0.70 * nota_tfam2)
+            (0.10 * nota_marfor)
+            + (0.70 * nota_base)
             + (0.20 * ccc)
         )
 
@@ -546,8 +603,8 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     params = {
         "nim": nim,
         "tfam_final": tfam_final,
-        "nota_base": nota_tfam2,
-        "marfor": nota_tfam1,
+        "nota_base": nota_base,
+        "marfor": nota_marfor,
         "judo": judo,
         "equitacao": equitacao,
         "boxe": boxe,
@@ -604,8 +661,6 @@ def criar_tfam(num_corpo: int, tipo_aval: str, tfam: TFAMUpdate, db=Depends(get_
     db.commit()
 
     return {"message": "Dados do TFAM guardados com sucesso."}
-
-
 
 @app.get("/alunos/{num_corpo}/tfam")
 def get_tfam_by_num_corpo(num_corpo: int, db=Depends(get_db)):
